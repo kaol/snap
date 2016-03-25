@@ -5,6 +5,8 @@ import           Prelude
 import           Control.Lens
 import           Control.Monad.State
 import           Control.Monad.Trans.Either
+import qualified Data.ByteString as B
+import           Data.Char
 import qualified Data.HashMap.Strict as Map
 import           Data.IORef
 import           Data.List
@@ -77,14 +79,17 @@ heistInitWorker templateDir initialConfig = do
         , "templates from"
         , tDir
         ]
-    let config = over hcTemplateLocations (<> [loadTemplates tDir])
-                      initialConfig
+    let spliceConfig = mempty & scCompiledTemplateFilter .~ ctFilter
+    let config = initialConfig & hcTemplateLocations %~ (<> [loadTemplates tDir])
+                               & hcSpliceConfig %~ (<> spliceConfig)
     ref <- liftIO $ newIORef (config, Compiled)
 
     -- FIXME This runs after all the initializers, but before post init
     -- hooks registered by other snaplets.
     addPostInitHook finalLoadHook
     return $ Configuring ref
+  where
+    ctFilter = (/=) (fromIntegral $ ord '_') . B.head . head
 
 
 ------------------------------------------------------------------------------

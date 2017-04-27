@@ -7,10 +7,15 @@ module Snap.Snaplet.Internal.Tests
   ( tests, initTest ) where
 
 ------------------------------------------------------------------------------
+import           Control.Exception                   (finally)
 import           Control.Lens                        (makeLenses)
 import           Control.Monad.Trans                 (MonadIO, liftIO)
+import           Control.Monad.Trans.Except          (ExceptT(..), runExceptT)
 import           Data.ByteString                     (ByteString)
 import qualified Data.ByteString.Char8               as B
+import           Data.IORef                          (newIORef, modifyIORef,
+                                                      readIORef)
+import qualified Data.Map                            as Map
 import           Data.Text                           (Text)
 import           Prelude                             hiding (catch, (.))
 import           System.Directory                    (getCurrentDirectory)
@@ -20,8 +25,15 @@ import           Test.Framework.Providers.SmallCheck (testProperty)
 import           Test.HUnit                          hiding (Test, path)
 import           Test.SmallCheck                     ((==>))
 ------------------------------------------------------------------------------
+import           Snap.Core                           (rspStatus)
+import           Snap.Snaplet                        (with)
+import           Snap.Snaplet.Heist                  (heistServe, gHeistServe)
 import           Snap.Snaplet.Internal.Initializer
 import           Snap.Snaplet.Internal.Types
+import           Snap.Snaplet.Test                   (getSnaplet, runHandler',
+                                                      closeSnaplet)
+import qualified Snap.Snaplet.Test.Common.App        as C
+import qualified Snap.Test                           as ST
 
 
                        ---------------------------------
@@ -121,9 +133,32 @@ initTest = do
 
 
 ------------------------------------------------------------------------------
+bracketHandlerTest :: IO ()
+bracketHandlerTest = do
+    refAcq <- newIORef 0
+    refRel <- newIORef 0
+    res <- runExceptT $ do
+        (s,i) <- ExceptT $ getSnaplet Nothing C.appInit
+        let hdl = with C.heist $ bracketHandler
+              (modifyIORef refAcq (+1))
+              (const $ modifyIORef refRel (+1))
+              (const gHeistServe)
+        ExceptT $ flip finally (closeSnaplet i) $ runExceptT $ do
+            good <- runHandler' s i (ST.get "index" Map.empty) hdl
+            bad <- runHandler' s i (ST.get "404" Map.empty) hdl
+            return (good, bad)
+    acquires <- readIORef refAcq
+    releases <- readIORef refRel
+    assertEqual "bracketHandler acquire and release won't be called on short circuit"
+      (Right (Right 200, Right 404), 1, 1)
+      (fmap (\(g,b) -> (fmap rspStatus g, fmap rspStatus b)) res, acquires, releases)
+
+
+------------------------------------------------------------------------------
 tests :: Test
 tests = testGroup "Snap.Snaplet.Internal"
     [ testCase "initializer tests" initTest
+    , testCase "bracketHandler test" bracketHandlerTest
     , testProperty "buildPath generates no double slashes" doubleSlashes
     ]
 

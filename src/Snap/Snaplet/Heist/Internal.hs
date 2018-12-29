@@ -29,11 +29,11 @@ data DefaultMode = Compiled | Interpreted
 -- it.  The type parameter b will typically be the base state type for your
 -- application.
 data Heist b = Configuring
-                 { _heistConfig :: IORef (HeistConfig (Handler b b), DefaultMode)
+                 { _heistConfig :: IORef (HeistConfig (Handler b b) IO, DefaultMode)
                  }
              | Running
-                 { _masterConfig :: HeistConfig (Handler b b)
-                 , _heistState   :: HeistState (Handler b b)
+                 { _masterConfig :: HeistConfig (Handler b b) IO
+                 , _heistState   :: HeistState (Handler b b) IO
                  , _heistCTS     :: CacheTagState
                  , _defMode      :: DefaultMode
                  }
@@ -65,7 +65,7 @@ gHeistInit serve templateDir = do
 -- | Internal worker function used by variants of heistInit.  This is
 -- necessary because of the divide between SnapletInit and Initializer.
 heistInitWorker :: FilePath
-                -> HeistConfig (Handler b b)
+                -> HeistConfig (Handler b b) IO
                 -> Initializer b (Heist b) (Heist b)
 heistInitWorker templateDir initialConfig = do
     snapletPath <- getSnapletFilePath

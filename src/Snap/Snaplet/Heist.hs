@@ -127,14 +127,14 @@ addTemplatesAt h pfx p =
 ------------------------------------------------------------------------------
 -- | More general function allowing arbitrary HeistState modification.
 getHeistState :: (HasHeist b)
-              => Handler b v (HeistState (Handler b b))
+              => Handler b v (HeistState (Handler b b) IO)
 getHeistState = Unclassed.getHeistState heistLens
 
 
 ------------------------------------------------------------------------------
 -- | More general function allowing arbitrary HeistState modification.
 modifyHeistState :: (HasHeist b)
-                 => (HeistState (Handler b b) -> HeistState (Handler b b))
+                 => (HeistState (Handler b b) IO -> HeistState (Handler b b) IO)
                      -- ^ HeistState modifying function
                  -> Initializer b v ()
 modifyHeistState = Unclassed.modifyHeistState' heistLens
@@ -143,7 +143,7 @@ modifyHeistState = Unclassed.modifyHeistState' heistLens
 ------------------------------------------------------------------------------
 -- | Runs a function on with the Heist snaplet's 'HeistState'.
 withHeistState :: (HasHeist b)
-               => (HeistState (Handler b b) -> a)
+               => (HeistState (Handler b b) IO -> a)
                    -- ^ HeistState function to run
                -> Handler b v a
 withHeistState = Unclassed.withHeistState' heistLens
@@ -328,7 +328,7 @@ withSplices = Unclassed.withSplices' heistLens
 --
 -- > heistLocal (bindSplices mySplices) handlerThatNeedsSplices
 heistLocal :: HasHeist b
-           => (HeistState (Handler b b) -> HeistState (Handler b b))
+           => (HeistState (Handler b b) IO -> HeistState (Handler b b) IO)
                -- ^ HeistState modifying function
            -> Handler b v a
                -- ^ Handler to run

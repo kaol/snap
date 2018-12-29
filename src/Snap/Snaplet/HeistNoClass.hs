@@ -91,7 +91,7 @@ import           Snap.Util.FileServe
 
 
 ------------------------------------------------------------------------------
-changeState :: (HeistState (Handler a a) -> HeistState (Handler a a))
+changeState :: (HeistState (Handler a a) IO -> HeistState (Handler a a) IO)
             -> Heist a
             -> Heist a
 changeState _ (Configuring _)  =
@@ -114,7 +114,7 @@ clearHeistCache = clearCacheTagState . _heistCTS
 ------------------------------------------------------------------------------
 -- | This instance is here because we don't want the heist package to depend
 -- on anything from snap packages.
-instance MonadSnap m => MonadSnap (HeistT n m) where
+instance MonadSnap m => MonadSnap (GHeistT n m m) where
     liftSnap = lift . liftSnap
 
 
@@ -145,7 +145,7 @@ heistInit = gHeistInit heistServe
 -- templates, allowing you complete control over which templates get routed.
 heistInit' :: FilePath
                -- ^ Path to templates
-           -> HeistConfig (Handler b b)
+           -> HeistConfig (Handler b b) IO
                -- ^ Initial HeistConfig
            -> SnapletInit b (Heist b)
 heistInit' templateDir initialConfig =
@@ -215,7 +215,7 @@ addTemplatesAt h urlPrefix templateDir = do
 
 
 getCurHeistConfig :: Snaplet (Heist b)
-                  -> Initializer b v (HeistConfig (Handler b b))
+                  -> Initializer b v (HeistConfig (Handler b b) IO)
 getCurHeistConfig h = case view snapletValue h of
     Configuring ref -> do
         (hc, _) <- liftIO $ readIORef ref
@@ -226,13 +226,13 @@ getCurHeistConfig h = case view snapletValue h of
 
 ------------------------------------------------------------------------------
 getHeistState :: SnapletLens (Snaplet b) (Heist b)
-              -> Handler b v (HeistState (Handler b b))
+              -> Handler b v (HeistState (Handler b b) IO)
 getHeistState heist = withTop' heist $ gets _heistState
 
 
 ------------------------------------------------------------------------------
 modifyHeistState' :: SnapletLens (Snaplet b) (Heist b)
-                  -> (HeistState (Handler b b) -> HeistState (Handler b b))
+                  -> (HeistState (Handler b b) IO -> HeistState (Handler b b) IO)
                   -> Initializer b v ()
 modifyHeistState' heist f = do
     withTop' heist $ addPostInitHook $ return . Right . changeState f
@@ -240,14 +240,14 @@ modifyHeistState' heist f = do
 
 ------------------------------------------------------------------------------
 modifyHeistState :: SnapletLens b (Heist b)
-                 -> (HeistState (Handler b b) -> HeistState (Handler b b))
+                 -> (HeistState (Handler b b) IO -> HeistState (Handler b b) IO)
                  -> Initializer b v ()
 modifyHeistState heist f = modifyHeistState' (subSnaplet heist) f
 
 
 ------------------------------------------------------------------------------
 withHeistState' :: SnapletLens (Snaplet b) (Heist b)
-                -> (HeistState (Handler b b) -> a)
+                -> (HeistState (Handler b b) IO -> a)
                 -> Handler b v a
 withHeistState' heist f = do
     hs <- withTop' heist $ gets _heistState
@@ -256,7 +256,7 @@ withHeistState' heist f = do
 
 ------------------------------------------------------------------------------
 withHeistState :: SnapletLens b (Heist b)
-               -> (HeistState (Handler b b) -> a)
+               -> (HeistState (Handler b b) IO -> a)
                -> Handler b v a
 withHeistState heist f = withHeistState' (subSnaplet heist) f
 
@@ -266,7 +266,7 @@ withHeistState heist f = withHeistState' (subSnaplet heist) f
 -- there.  This is the preferred method for adding all four kinds of splices
 -- as well as new templates.
 addConfig :: Snaplet (Heist b)
-          -> SpliceConfig (Handler b b)
+          -> SpliceConfig (Handler b b) IO
           -> Initializer b v ()
 addConfig h sc = case view snapletValue h of
     Configuring ref ->
@@ -428,7 +428,7 @@ gHeistServeSingle t = chooseMode (cHeistServeSingle t) (heistServeSingle t)
 
 ------------------------------------------------------------------------------
 heistLocal' :: SnapletLens (Snaplet b) (Heist b)
-            -> (HeistState (Handler b b) -> HeistState (Handler b b))
+            -> (HeistState (Handler b b) IO -> HeistState (Handler b b) IO)
             -> Handler b v a
             -> Handler b v a
 heistLocal' heist f m = do
@@ -441,7 +441,7 @@ heistLocal' heist f m = do
 
 ------------------------------------------------------------------------------
 heistLocal :: SnapletLens b (Heist b)
-           -> (HeistState (Handler b b) -> HeistState (Handler b b))
+           -> (HeistState (Handler b b) IO -> HeistState (Handler b b) IO)
            -> Handler b v a
            -> Handler b v a
 heistLocal heist f m = heistLocal' (subSnaplet heist) f m
